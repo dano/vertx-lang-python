@@ -9,7 +9,7 @@
     {
       "kind": "class",
       "fileName": "'resources/' + type.raw.moduleName + '_python/__init__.py'",
-      "templateFileName": "vertx_python/template/init.templ"
+      "templateFileName": "vertx_python/template/init-coro.templ"
     },
     {
       "kind": "class",

@@ -338,8 +338,17 @@
 	@end{}
 
 	@if{baseMethod != null && static == method.staticMethod}
+		@code{add_coro_decorator = false}
+		@foreach{param: method.params}
+			@if{param.type.kind == CLASS_HANDLER}
+					@if{param.type.args[0].kind == CLASS_ASYNC_RESULT}
+						@code{add_coro_decorator = true}
+					@end{}
+			@end{}
+		@end{}
 		@if{method.cacheReturn}@{ind}@@util.cached\n@end{}
 		@if{static}@{ind}@@classmethod\n@end{}
+		@if{add_coro_decorator}@{ind}@@util.coroutine\n@end{}
 		@{ind}def @{convertName(methodName)}(self
 		@foreach{param : requiredParams}
 			@if{optionsParam == null || param != optionsParam.name}
