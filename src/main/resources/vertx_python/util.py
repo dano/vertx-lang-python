@@ -6,22 +6,11 @@ import operator
 from functools import partial, wraps
 from contextlib import contextmanager
 
-from .compat import unicode, long
-
 from py4j.java_gateway import is_instance_of
 from py4j.compat import iteritems
 from py4j.java_collections import MapConverter, ListConverter, SetConverter, JavaMap
 
-if sys.version_info >= (3,3):
-    import asyncio
-elif sys.version_info >= (3,0):
-    raise Exception("Must be running either Python 2.7.x or Python 3.3+ to use this module.")
-else:
-    import trollius as asyncio
-try:
-    import asyncio
-except ImportError:
-    import trollius as asyncio
+from .compat import asyncio
 
 java_gateway = None
 jvm = None
@@ -33,11 +22,13 @@ class VertxException(Exception):
 def coroutine(func):
     @wraps(func)
     def inner(*args, **kwargs):
-        fut = asyncio.Future()
-        loop = kwargs.pop('loop', asyncio.get_event_loop())
+        loop = kwargs.pop('loop', None)
+        if loop is None:
+            loop = asyncio.get_event_loop()
+        fut = asyncio.Future(loop=loop)
         def handler(result, exc=None):
             if exc is not None:
-                loop.call_soon_threadsafe(fut.set_exception, VertxException(exc.getMessage()))
+                loop.call_soon_threadsafe(fut.set_exception, exc)
             else:
                 loop.call_soon_threadsafe(fut.set_result, result)
         args += (handler,)

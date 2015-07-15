@@ -2,7 +2,6 @@ from __future__ import unicode_literals, print_function, absolute_import
 import re
 import sys
 import unittest
-import asyncio  #TODO can't do this.
 
 from testmodel_python.testmodel.test_interface import TestInterface
 from testmodel_python.testmodel.refed_interface1 import RefedInterface1
@@ -16,7 +15,7 @@ from acme_python.sub.sub_interface import SubInterface
 
 from vertx_python import util
 from vertx_python.util import frozendict, VertxException
-from vertx_python.compat import long, unicode, iteritems
+from vertx_python.compat import long, unicode, iteritems, asyncio
 
 from py4j.protocol import Py4JJavaError
 
@@ -29,6 +28,13 @@ with util.handle_vertx_shutdown(on_error_only=True):
     refed_obj2 = RefedInterface1(jvm.io.vertx.codegen.testmodel.RefedInterface1Impl())
 
 class TestAPI(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(None)
+
+    def tearDown(self):
+        self.loop.close()
+
     def testMethodWithBasicParams(self):
         obj.method_with_basic_params(123, 12345, 1234567, 1265615234, 12.345, 12.34566, True, 88, 'foobar')
 
@@ -82,234 +88,275 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(dct['count'], 9)
               
     def testMethodWithHandlerAsyncResultBasicTypes(self):
-        @asyncio.coroutine
-        def do_test():
-            b = yield from obj.method_with_handler_async_result_byte(False)
+        dct = dict(count=0)
+        def byte_handler(b):
+            b = b.result()
             self.assertEqual(type(b), int)
             self.assertEqual(123, b)
-            s = yield from obj.method_with_handler_async_result_short(False)
+            dct['count'] += 1
+        def short_handler(s):
+            s = s.result()
             self.assertEqual(type(s), int)
             self.assertEqual(12345, s)
-            i = yield from obj.method_with_handler_async_result_integer(False)
+            dct['count'] += 1
+        def int_handler(i):
+            i = i .result()
             self.assertEqual(type(i), int)
             self.assertEqual(1234567, i)
-            l = yield from obj.method_with_handler_async_result_long(False)
+            dct['count'] += 1
+        def long_handler(l):
+            l = l.result()
             self.assertEqual(type(l), long)
             self.assertEqual(1265615234, l)
-            f = yield from obj.method_with_handler_async_result_float(False)
+            dct['count'] += 1
+        def float_handler(f):
+            f = f.result()
             self.assertEqual(type(f), float)
             self.assertEqual(12.345, f)
-            d = yield from obj.method_with_handler_async_result_double(False)
+            dct['count'] += 1
+        def double_handler(d):
+            d = d.result()
             self.assertEqual(type(d), float)
             self.assertEqual(12.34566, d)
-            b = yield from obj.method_with_handler_async_result_boolean(False)
+            dct['count'] += 1
+        def boolean_handler(b):
+            b = b.result()
             self.assertEqual(type(b), bool)
             self.assertTrue(b)
-            c = yield from obj.method_with_handler_async_result_character(False)
+            dct['count'] += 1
+        def char_handler(c):
+            c = c.result()
             self.assertEqual(type(c), unicode)
             self.assertEqual('X', c)
-            s = yield from obj.method_with_handler_async_result_string(False)
+            dct['count'] += 1
+        def string_handler(s):
+            s = s.result()
             self.assertEqual(type(s), unicode)
             self.assertEqual('quux!', s)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(do_test())
+            dct['count'] += 1
+        tasks = []
+        for coro, handler in [
+                                (obj.method_with_handler_async_result_byte, byte_handler),
+                                (obj.method_with_handler_async_result_short, short_handler),
+                                (obj.method_with_handler_async_result_integer, int_handler),
+                                (obj.method_with_handler_async_result_long, long_handler),
+                                (obj.method_with_handler_async_result_float, float_handler),
+                                (obj.method_with_handler_async_result_double, double_handler),
+                                (obj.method_with_handler_async_result_boolean, boolean_handler),
+                                (obj.method_with_handler_async_result_character, char_handler),
+                                (obj.method_with_handler_async_result_string, string_handler),
+                                ]:
+            task = coro(False, loop=self.loop)
+            task.add_done_callback(handler)
+            tasks.append(task)
+        self.loop.run_until_complete(asyncio.gather(*tasks))
+        self.assertEqual(dct['count'], 9)
 
 
     def testMethodWithHandlerAsyncResultBasicTypesFails(self):
-        @asyncio.coroutine
-        def do_test():
-            @asyncio.coroutine
-            def runner(meth):
-                try:
-                    yield from meth(True)
-                except VertxException as err:
-                    self.assertEqual("foobar!", str(foo));
-            yield from runner(obj.method_with_handler_async_result_short)
-            yield from runner(obj.method_with_handler_async_result_integer)
-            yield from runner(obj.method_with_handler_async_result_long)
-            yield from runner(obj.method_with_handler_async_result_float)
-            yield from runner(obj.method_with_handler_async_result_double)
-            yield from runner(obj.method_with_handler_async_result_boolean)
-            yield from runner(obj.method_with_handler_async_result_character)
-            yield from runner(obj.method_with_handler_async_result_string)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(do_test())
+        dct = dict(count=0)
+        def handler(x):
+            try:
+                x = x.result()
+            except Exception as err:
+                self.assertEqual("foobar!", str(err));
+            dct['count'] += 1
+
+        tasks = []
+        for coro, hndlr in [
+                            (obj.method_with_handler_async_result_byte, handler),
+                            (obj.method_with_handler_async_result_short, handler),
+                            (obj.method_with_handler_async_result_integer, handler),
+                            (obj.method_with_handler_async_result_long, handler),
+                            (obj.method_with_handler_async_result_float, handler),
+                            (obj.method_with_handler_async_result_double, handler),
+                            (obj.method_with_handler_async_result_boolean, handler),
+                            (obj.method_with_handler_async_result_character, handler),
+                            (obj.method_with_handler_async_result_string, handler),
+                            ]:
+            task = coro(True, loop=self.loop)
+            task.add_done_callback(hndlr)
+            tasks.append(task)
+        self.loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+        self.assertEqual(dct['count'], 9)
 
     def testMethodWithUserTypes(self):
         refed_obj.set_string('aardvarks')
         obj.method_with_user_types(refed_obj)
 
 
-    #def testObjectParam(self):
-        #obj.method_with_object_param('null', None)
-        #obj.method_with_object_param('string', 'wibble')
-        #obj.method_with_object_param('true', True)
-        #obj.method_with_object_param('false', False)
-        #obj.method_with_object_param('long', 123)
-        #obj.method_with_object_param('double', 123.456)
-        #json_obj = {"foo" : "hello", "bar" : 123}
-        #obj.method_with_object_param('JsonObject', json_obj)
-        #json_arr = ["foo", "bar", "wib"]
-        #obj.method_with_object_param('JsonArray', json_arr)
+    def testObjectParam(self):
+        obj.method_with_object_param('null', None)
+        obj.method_with_object_param('string', 'wibble')
+        obj.method_with_object_param('true', True)
+        obj.method_with_object_param('false', False)
+        obj.method_with_object_param('long', 123)
+        obj.method_with_object_param('double', 123.456)
+        json_obj = {"foo" : "hello", "bar" : 123}
+        obj.method_with_object_param('JsonObject', json_obj)
+        json_arr = ["foo", "bar", "wib"]
+        obj.method_with_object_param('JsonArray', json_arr)
 
 
-    #def testDataObjectParam(self):
-        #data_object = {"foo" : "hello", "bar" : 123, "wibble" : 1.23}
-        #obj.method_with_data_object_param(**data_object)
+    def testDataObjectParam(self):
+        data_object = {"foo" : "hello", "bar" : 123, "wibble" : 1.23}
+        obj.method_with_data_object_param(**data_object)
 
 
-    ##TODO not really possible to pass a Null object w/ Python API
-    ##def testNullDataObjectParam(self):
-        ##data_object = {}
-        ##obj.method_with_null_data_object_param(**data_object)
+    #TODO not really possible to pass a Null object w/ Python API
+    #def testNullDataObjectParam(self):
+        #data_object = {}
+        #obj.method_with_null_data_object_param(**data_object)
 
 
-    #def testMethodWithHandlerDataObject(self):
-        #dct = dict(count=0)
-        #def handler(option):
-            #self.assertEqual("foo", option['foo'])
-            #self.assertEqual(123, option['bar'])
-            #self.assertEqual(0.0, option['wibble'])
-            #dct['count'] += 1
-        #obj.method_with_handler_data_object(handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerDataObject(self):
+        dct = dict(count=0)
+        def handler(option):
+            self.assertEqual("foo", option['foo'])
+            self.assertEqual(123, option['bar'])
+            self.assertEqual(0.0, option['wibble'])
+            dct['count'] += 1
+        obj.method_with_handler_data_object(handler)
+        self.assertEqual(dct['count'], 1)
 
 
-    #def testMethodWithHandlerAsyncResultDataObject(self):
-        #dct = dict(count=0)
-        #def handler(option, err):
-            #self.assertIsNone(err)
-            #self.assertEqual("foo", option['foo'])
-            #self.assertEqual(123, option['bar'])
-            #self.assertEqual(0.0, option['wibble'])
-            #dct['count'] += 1
-        #obj.method_with_handler_async_result_data_object(False, handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerAsyncResultDataObject(self):
+        dct = dict(count=0)
+        def handler(option):
+            option = option.result()
+            self.assertEqual("foo", option['foo'])
+            self.assertEqual(123, option['bar'])
+            self.assertEqual(0.0, option['wibble'])
+            dct['count'] += 1
+        task = obj.method_with_handler_async_result_data_object(False, loop=self.loop)
+        task.add_done_callback(handler)
+        self.loop.run_until_complete(task)
+        self.assertEqual(dct['count'], 1)
 
 
-    #def testMethodWithHandlerAsyncResultDataObjectFails(self):
-        #dct = dict(count=0)
-        #def handler(option, err):
-            #self.assertIsNone(option)
-            #self.assertIsNotNone(err)
-            #self.assertEqual("foobar!", err.getMessage())
-            #dct['count'] += 1
-        #obj.method_with_handler_async_result_data_object(True, handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerAsyncResultDataObjectFails(self):
+        task = obj.method_with_handler_async_result_data_object(True, loop=self.loop)
+        try:
+            self.loop.run_until_complete(task)
+        except VertxException as err:
+            self.assertEqual("foobar!", str(err))
 
 
-    #def testMethodWithHandlerListAndSet(self):
-        #dct = dict(count=0)
-        #def handle_str_list(l):
-            #self.assertEqual(type(l), list)
-            #self.assertEqual("foo", l[0])
-            #self.assertEqual("bar", l[1])
-            #self.assertEqual("wibble", l[2])
-            #dct['count'] += 1
-        #def handle_int_list(l):
-            #self.assertEqual(type(l), list)
-            #self.assertEqual(5, l[0])
-            #self.assertEqual(12, l[1])
-            #self.assertEqual(100, l[2])
-            #dct['count'] += 1
-        #def handle_str_set(s):
-            #self.assertEqual(type(s), set)
-            #self.assertSetEqual(set(['foo', 'bar', 'wibble']), s)
-            #dct['count'] += 1
-        #def handle_int_set(s):
-            #self.assertEqual(type(s), set)
-            #self.assertSetEqual(set([5, 12, 100]), s)
-            #dct['count'] += 1
+    def testMethodWithHandlerListAndSet(self):
+        dct = dict(count=0)
+        def handle_str_list(l):
+            self.assertEqual(type(l), list)
+            self.assertEqual("foo", l[0])
+            self.assertEqual("bar", l[1])
+            self.assertEqual("wibble", l[2])
+            dct['count'] += 1
+        def handle_int_list(l):
+            self.assertEqual(type(l), list)
+            self.assertEqual(5, l[0])
+            self.assertEqual(12, l[1])
+            self.assertEqual(100, l[2])
+            dct['count'] += 1
+        def handle_str_set(s):
+            self.assertEqual(type(s), set)
+            self.assertSetEqual(set(['foo', 'bar', 'wibble']), s)
+            dct['count'] += 1
+        def handle_int_set(s):
+            self.assertEqual(type(s), set)
+            self.assertSetEqual(set([5, 12, 100]), s)
+            dct['count'] += 1
 
-        #obj.method_with_handler_list_and_set(handle_str_list, handle_int_list,
-                                             #handle_str_set, handle_int_set)
-        #self.assertEqual(dct['count'], 4)
-
-
-    #def testMethodWithHandlerAsyncResultListAndSet(self):
-        #dct = dict(count=0)
-        #def handle_str_list(l, err):
-            #self.assertIsNone(err)
-            #self.assertEqual(type(l), list)
-            #self.assertEqual("foo", l[0])
-            #self.assertEqual("bar", l[1])
-            #self.assertEqual("wibble", l[2])
-            #dct['count'] += 1
-        #def handle_int_list(l, err):
-            #self.assertIsNone(err)
-            #self.assertEqual(type(l), list)
-            #self.assertEqual(5, l[0])
-            #self.assertEqual(12, l[1])
-            #self.assertEqual(100, l[2])
-            #dct['count'] += 1
-        #def handle_str_set(s, err):
-            #self.assertIsNone(err)
-            #self.assertEqual(type(s), set)
-            #self.assertSetEqual(set(['foo', 'bar', 'wibble']), s)
-            #dct['count'] += 1
-        #def handle_int_set(s, err):
-            #self.assertIsNone(err)
-            #self.assertEqual(type(s), set)
-            #self.assertSetEqual(set([5, 12, 100]), s)
-            #dct['count'] += 1
-
-        #obj.method_with_handler_async_result_list_string(handle_str_list)
-        #obj.method_with_handler_async_result_list_integer(handle_int_list)
-        #obj.method_with_handler_async_result_set_string(handle_str_set)
-        #obj.method_with_handler_async_result_set_integer(handle_int_set)
-        #self.assertEqual(dct['count'], 4)
+        obj.method_with_handler_list_and_set(handle_str_list, handle_int_list,
+                                             handle_str_set, handle_int_set)
+        self.assertEqual(dct['count'], 4)
 
 
-    #def testMethodWithHandlerListVertxGen(self):
-        #dct = dict(count=0)
-        #def handler(val):
-            #self.assertEqual(type(val), list)
-            #self.assertEqual(len(val), 2)
-            #self.assertEqual(type(val[0]), RefedInterface1)
-            #self.assertEqual(val[0].get_string(), 'foo')
-            #self.assertEqual(type(val[1]), RefedInterface1)
-            #self.assertEqual(val[1].get_string(), 'bar')
-            #dct['count'] += 1
-        #obj.method_with_handler_list_vertx_gen(handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerAsyncResultListAndSet(self):
+        dct = dict(count=0)
+        def handle_str_list(l):
+            l = l.result()
+            self.assertEqual(type(l), list)
+            self.assertEqual("foo", l[0])
+            self.assertEqual("bar", l[1])
+            self.assertEqual("wibble", l[2])
+            dct['count'] += 1
+        def handle_int_list(l):
+            l = l.result()
+            self.assertEqual(type(l), list)
+            self.assertEqual(5, l[0])
+            self.assertEqual(12, l[1])
+            self.assertEqual(100, l[2])
+            dct['count'] += 1
+        def handle_str_set(s):
+            s = s.result()
+            self.assertEqual(type(s), set)
+            self.assertSetEqual(set(['foo', 'bar', 'wibble']), s)
+            dct['count'] += 1
+        def handle_int_set(s):
+            s = s.result()
+            self.assertEqual(type(s), set)
+            self.assertSetEqual(set([5, 12, 100]), s)
+            dct['count'] += 1
 
-    #def testMethodWithHandlerUserTypes(self):
-        #dct = dict(count=0)
-        #def handler(val):
-            #self.assertEqual(type(val), RefedInterface1)
-            #self.assertEqual(val.get_string(), 'echidnas')
-            #dct['count'] += 1
-        #obj.method_with_handler_user_types(handler)
-        #self.assertEqual(dct['count'], 1)
-
-    #def testMethodWithHandlerListAbstractVertxGen(self):
-        #dct = dict(count=0)
-        #def handler(val):
-            #self.assertEqual(type(val), list)
-            #self.assertEqual(len(val), 2)
-            #self.assertIsInstance(val[0], RefedInterface2)
-            #self.assertEqual(val[0].get_string(), 'abstractfoo')
-            #self.assertIsInstance(val[1], RefedInterface2)
-            #self.assertEqual(val[1].get_string(), 'abstractbar')
-            #dct['count'] += 1
-
-        #obj.method_with_handler_list_abstract_vertx_gen(handler)
-        #self.assertEqual(dct['count'], 1)
+        tasks = []
+        for meth, handler in [
+                                (obj.method_with_handler_async_result_list_string, handle_str_list),
+                                (obj.method_with_handler_async_result_list_integer, handle_int_list),
+                                (obj.method_with_handler_async_result_set_string, handle_str_set),
+                                (obj.method_with_handler_async_result_set_integer, handle_int_set),
+                             ]:
+            task = meth(loop=self.loop)
+            task.add_done_callback(handler)
+            tasks.append(task)
+        self.loop.run_until_complete(asyncio.gather(*tasks))
+        self.assertEqual(dct['count'], 4)
 
 
-    #def testMethodWithHandlerAsyncResultListVertxGen(self):
-        #dct = dict(count=0)
-        #def handler(val, err):
-            #self.assertIsNone(err)
-            #self.assertEqual(type(val), list)
-            #self.assertEqual(len(val), 2)
-            #self.assertEqual(type(val[0]), RefedInterface1)
-            #self.assertEqual(val[0].get_string(), 'foo')
-            #self.assertEqual(type(val[1]), RefedInterface1)
-            #self.assertEqual(val[1].get_string(), 'bar')
-            #dct['count'] += 1
-        #obj.method_with_handler_async_result_list_vertx_gen(handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerListVertxGen(self):
+        dct = dict(count=0)
+        def handler(val):
+            self.assertEqual(type(val), list)
+            self.assertEqual(len(val), 2)
+            self.assertEqual(type(val[0]), RefedInterface1)
+            self.assertEqual(val[0].get_string(), 'foo')
+            self.assertEqual(type(val[1]), RefedInterface1)
+            self.assertEqual(val[1].get_string(), 'bar')
+            dct['count'] += 1
+        obj.method_with_handler_list_vertx_gen(handler)
+        self.assertEqual(dct['count'], 1)
+
+    def testMethodWithHandlerUserTypes(self):
+        dct = dict(count=0)
+        def handler(val):
+            self.assertEqual(type(val), RefedInterface1)
+            self.assertEqual(val.get_string(), 'echidnas')
+            dct['count'] += 1
+        obj.method_with_handler_user_types(handler)
+        self.assertEqual(dct['count'], 1)
+
+    def testMethodWithHandlerListAbstractVertxGen(self):
+        dct = dict(count=0)
+        def handler(val):
+            self.assertEqual(type(val), list)
+            self.assertEqual(len(val), 2)
+            self.assertIsInstance(val[0], RefedInterface2)
+            self.assertEqual(val[0].get_string(), 'abstractfoo')
+            self.assertIsInstance(val[1], RefedInterface2)
+            self.assertEqual(val[1].get_string(), 'abstractbar')
+            dct['count'] += 1
+
+        obj.method_with_handler_list_abstract_vertx_gen(handler)
+        self.assertEqual(dct['count'], 1)
+
+
+    def testMethodWithHandlerAsyncResultListVertxGen(self):
+        task = obj.method_with_handler_async_result_list_vertx_gen(loop=self.loop)
+        val = self.loop.run_until_complete(task)
+        self.assertEqual(type(val), list)
+        self.assertEqual(len(val), 2)
+        self.assertEqual(type(val[0]), RefedInterface1)
+        self.assertEqual(val[0].get_string(), 'foo')
+        self.assertEqual(type(val[1]), RefedInterface1)
+        self.assertEqual(val[1].get_string(), 'bar')
 
 
     #def testMethodWithHandlerAsyncResultListAbstractVertxGen(self):
@@ -328,33 +375,33 @@ class TestAPI(unittest.TestCase):
         #self.assertEqual(dct['count'], 1)
 
 
-    #def testMethodWithHandlerSetVertxGen(self):
-        #dct = dict(count=0)
-        #def handler(val):
-            #self.assertEqual(type(val), set)
-            #self.assertEqual(len(val), 2)
-            #for item in val:
-                #self.assertEqual(type(item), RefedInterface1)
-            #self.assertSetEqual(set([x.get_string() for x in val]), 
-                                #set(['foo', 'bar']))
-            #dct['count'] += 1
-        #obj.method_with_handler_set_vertx_gen(handler)
-        #self.assertEqual(dct['count'], 1)
+    def testMethodWithHandlerSetVertxGen(self):
+        dct = dict(count=0)
+        def handler(val):
+            self.assertEqual(type(val), set)
+            self.assertEqual(len(val), 2)
+            for item in val:
+                self.assertEqual(type(item), RefedInterface1)
+            self.assertSetEqual(set([x.get_string() for x in val]), 
+                                set(['foo', 'bar']))
+            dct['count'] += 1
+        obj.method_with_handler_set_vertx_gen(handler)
+        self.assertEqual(dct['count'], 1)
 
 
-    #def testMethodWithHandlerSetAbstractVertxGen(self):
-        #dct = dict(count=0)
-        #def handler(val):
-            #self.assertEqual(type(val), set)
-            #self.assertEqual(len(val), 2)
-            #for item in val:
-                #self.assertIsInstance(item, RefedInterface2)
-            #self.assertSetEqual(set([x.get_string() for x in val]), 
-                                #set(['abstractfoo', 'abstractbar']))
-            #dct['count'] += 1
+    def testMethodWithHandlerSetAbstractVertxGen(self):
+        dct = dict(count=0)
+        def handler(val):
+            self.assertEqual(type(val), set)
+            self.assertEqual(len(val), 2)
+            for item in val:
+                self.assertIsInstance(item, RefedInterface2)
+            self.assertSetEqual(set([x.get_string() for x in val]), 
+                                set(['abstractfoo', 'abstractbar']))
+            dct['count'] += 1
 
-        #obj.method_with_handler_set_abstract_vertx_gen(handler)
-        #self.assertEqual(dct['count'], 1)
+        obj.method_with_handler_set_abstract_vertx_gen(handler)
+        self.assertEqual(dct['count'], 1)
 
 
     #def testMethodWithHandlerAsyncResultSetVertxGen(self):
@@ -1633,17 +1680,17 @@ class TestAPI(unittest.TestCase):
 
 if __name__ == "__main__":
     meth = sys.argv[-1]
-    err = False
+    _err = False
     print("Testing {}".format(meth))
     with util.handle_vertx_shutdown():
         if meth == "testEverything":
-            out = unittest.main(exit=False, argv=[sys.argv[0]], verbosity=2)
+            out = unittest.main(exit=False, argv=[sys.argv[0]])
             result = out.result
             if result.failures or result.errors:
-                err = True
+                _err = True
         else:
             case = TestAPI(meth)
             case.debug()
-    if err:
+    if _err:
         sys.exit(1)
 
