@@ -7,10 +7,9 @@ from functools import partial, wraps
 from contextlib import contextmanager
 
 from py4j.java_gateway import is_instance_of
-from py4j.compat import iteritems
 from py4j.java_collections import MapConverter, ListConverter, SetConverter, JavaMap
 
-from .compat import asyncio
+from .compat import asyncio, reduce, iteritems
 
 java_gateway = None
 jvm = None
@@ -96,7 +95,7 @@ class frozendict(dict, collections.Mapping):
 
     def __hash__(self):
         if self.__hash is None:
-            self.__hash = reduce(operator.xor, map(hash, self.iteritems()), 0)
+            self.__hash = reduce(operator.xor, map(hash, iteritems(self)), 0)
         return self.__hash
 
 
