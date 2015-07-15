@@ -1,6 +1,5 @@
 from __future__ import unicode_literals, print_function, absolute_import
 
-import sys
 import json
 import collections
 import operator
@@ -29,8 +28,7 @@ jvm = None
 jvertx = None
 
 class VertxException(Exception):
-    def getMessage(self):
-        return str(self)
+    pass
 
 def coroutine(func):
     @wraps(func)

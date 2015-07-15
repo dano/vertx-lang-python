@@ -123,7 +123,7 @@ class TestAPI(unittest.TestCase):
                 try:
                     yield from meth(True)
                 except VertxException as err:
-                    self.assertEqual("foobar!", err.getMessage());
+                    self.assertEqual("foobar!", str(foo));
             yield from runner(obj.method_with_handler_async_result_short)
             yield from runner(obj.method_with_handler_async_result_integer)
             yield from runner(obj.method_with_handler_async_result_long)
