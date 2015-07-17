@@ -138,7 +138,8 @@ def vertx_shutdown():
     global java_gateway
     global jvm
     global jvertx
-    java_gateway.close()
+    print("shut it down")
+    java_gateway.shutdown()
     jvm = None
     jvertx = None
     java_gateway = None

@@ -59,12 +59,12 @@
 
 	def boolToStr(b) {
 		return (b) ? "True" : "False";
-    }
+	}
 
 	/*
-     * Generate the code that converts a Java return to the corresponding Python value.
-     * This is also used for converting values returned from Java API via handlers.
-     */
+	 * Generate the code that converts a Java return to the corresponding Python value.
+	 * This is also used for converting values returned from Java API via handlers.
+	 */
 	def convReturn(type, expr, hashable) {
 		var kind = type.kind;
 		if (kind == CLASS_LIST) {
@@ -92,7 +92,7 @@
 		} else if (kind == CLASS_MAP) {
 			var valueType = type.args[1];
 			return "util.java_map_to_python(" + expr + ", lambda x:" + 
-                    convReturn(valueType, "x", hashable) + ", lambda y:" + convParam("y", valueType) + ")";
+					convReturn(valueType, "x", hashable) + ", lambda y:" + convParam("y", valueType) + ")";
 		} else if (kind == CLASS_API) {
 			if (type.raw != null) {
 				if (type.raw.simpleName.equals("Throwable")) {
@@ -127,8 +127,8 @@
 	}
 
 	/*
-     * Generate the code that converts a parameter from Python to Java to 
-     * call a Java API method.
+	 * Generate the code that converts a parameter from Python to Java to 
+	 * call a Java API method.
 	 */
 	def getHandlerName(type) {
 		if (type.kind == CLASS_LIST || type.kind == CLASS_SET) {
@@ -155,16 +155,16 @@
 				return "Async" + getHandlerName(innerarg) + "Handler(util.build_coro_handler(loop, fut))";
 			} else {
 				return getHandlerName(element) + "Handler(" + convertName(paramName) + ")";
-            }
+			}
 		} else if (kind == CLASS_JSON_OBJECT) {
 			return "util.dict_to_json(" + convertName(paramName) + ")";
-        } else if (kind == CLASS_JSON_ARRAY) {
+		} else if (kind == CLASS_JSON_ARRAY) {
 			return "util.list_to_json(" + convertName(paramName) + ")";
-        } else if (kind == CLASS_DATA_OBJECT) {
+		} else if (kind == CLASS_DATA_OBJECT) {
 			return type.simpleName + "(util.dict_to_json(" + convertName(paramName) + "))" + 
-                   " if " + convertName(paramName) + " is not None else None";
+				   " if " + convertName(paramName) + " is not None else None";
 
-        } else if (kind.basic) {
+		} else if (kind.basic) {
 			if (typeName == 'char' || typeName == 'java.lang.Character') {
 				return "util.convert_char_to_java(" + convertName(paramName) + ")";
 			} else if (typeName == 'long' || typeName == 'java.lang.Long') {
@@ -182,26 +182,26 @@
 			} else {
 				return convertName(paramName);
 			}
-        } else if (kind == CLASS_LIST) {
+		} else if (kind == CLASS_LIST) {
 			var element = type.args[0];
 			return "util.python_list_to_java([" + convParam("i", element)  +" for i in " + paramName + "])"
-        } else if (kind == CLASS_SET) {
+		} else if (kind == CLASS_SET) {
 			var element = type.args[0];
 			return "util.python_set_to_java(set([" + convParam("i", element)  +" for i in " + paramName + "]))"
 		} else if (kind == CLASS_OBJECT) {
 			return "util.python_to_java(" + paramName + ")";
 		} else if (kind == CLASS_MAP) {
-		    var keyType = type.args[0];
-            var valueType = type.args[1];
+			var keyType = type.args[0];
+			var valueType = type.args[1];
 			return "util.python_map_to_java({" + convParam("k", keyType) + ":" + convParam("v", valueType) +
-                    " for k,v in  iteritems(" + paramName + ")})";
+					" for k,v in  iteritems(" + paramName + ")})";
 		} else if (kind == CLASS_ENUM) {
 			return "util.jvm." + type.name + ".valueOf(" + paramName + ")";
 		} else if (kind.basic || typeName.equals("java.lang.Void")) {
 			return paramName;
 		} else {
 			return paramName + "._jdel";
-        }
+		}
 	}
 }
 
@@ -220,6 +220,7 @@
 		@foreach{paramName: missingParamNames}
 			@if{optionsParam != null && optionsParam.name == paramName}
 				len(@{convertName(paramName)}) == 0
+			@else{asyncResultParam != null && asyncResultParam.name == paramName}
 			@else{}
 				@{convertName(paramName)} is None
 			@end{}
@@ -274,12 +275,18 @@
 	@code{methodList = methodsByName.get(methodName);  method = methodList.get(0);}
 
 
-	@code{requiredParams = []; optionalParams = []; optionsParam = null; paramNames = []; cnt = 0;}
+	@code{requiredParams = []; optionalParams = []; optionsParam = null; asyncResultParam = null; paramNames = []; 
+          cnt = 0; returnsFuture = false}
 	@foreach{method: methodList}
+		@if{method.kind == METHOD_FUTURE}
+			@code{returnsFuture = true}
+		@end{}
 		@if{cnt == 0}
 			@foreach{param: method.params}
 				@if{param.type.kind == CLASS_DATA_OBJECT}
 					@code{optionsParam = param}
+				@else{param.type.kind == CLASS_HANDLER && param.type.args[0].kind == CLASS_ASYNC_RESULT}
+					@code{asyncResultParam = param}
 				@end{}
 				@code{requiredParams.add(param.name);}
 			@end{}
@@ -290,6 +297,8 @@
 				@if{!paramNames.contains(param.name)}@code{paramNames.add(param.name)}@end{}
 				@if{param.type.kind == CLASS_DATA_OBJECT}
 					@code{optionsParam = param}
+				@else{param.type.kind == CLASS_HANDLER && param.type.args[0].kind == CLASS_ASYNC_RESULT}
+					@code{asyncResultParam = param}
 				@end{}
 				@if{requiredParams.contains(param.name)}
 					@code{newRequiredParams.add(param.name)}
@@ -343,19 +352,16 @@
 	@end{}
 
 	@if{baseMethod != null && static == method.staticMethod}
-		@code{returnsFuture = (method.kind == METHOD_FUTURE)}
 		@if{method.cacheReturn}@{ind}@@util.cached\n@end{}
 		@if{static}@{ind}@@classmethod\n@end{}
-		@comment{"@if{returnsFuture}@{ind}@@util.coroutine\n@end{}"}
 		@{ind}def @{convertName(methodName)}(self
-		@if{returnsFuture}@code{requiredParams.remove(requiredParams.size() -1)}@end{}
 		@foreach{param : requiredParams}
-			@if{optionsParam == null || param != optionsParam.name}
+			@if{(optionsParam == null || param != optionsParam.name) && (asyncResultParam == null || param != asyncResultParam.name)}
 				, @{convertName(param)}
 			@end{}
 		@end{}
 		@foreach{param: optionalParams}
-			@if{optionsParam == null || param != optionsParam.name}
+			@if{(optionsParam == null || param != optionsParam.name) && (asyncResultParam == null || param != asyncResultParam.name)}
 				, @{convertName(param)}=None
 			@end{}
 		@end{}
@@ -416,6 +422,10 @@
 				@end{}
 			@end{}
 		@else{}
+			@if{returnsFuture}
+				@{ind}    if loop is None: loop = asyncio.get_event_loop()\n
+				@{ind}    fut = asyncio.Future(loop=loop)\n
+			@end{}
 			@code{mcnt = 0;}
 			@foreach{method: childMethods}
 				@{ind}    @if{mcnt == 0}if @code{mcnt++}@else{}elif @end{}@includeNamed{'genCondition'}:\n
