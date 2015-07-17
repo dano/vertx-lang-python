@@ -152,7 +152,7 @@
 			var element = type.args[0];
 			if (element.kind == CLASS_ASYNC_RESULT) {
 				var innerarg = element.args[0];
-				return "Async" + getHandlerName(innerarg) + "Handler(" + convertName(paramName) + ")";
+				return "Async" + getHandlerName(innerarg) + "Handler(util.build_coro_handler(loop, fut))";
 			} else {
 				return getHandlerName(element) + "Handler(" + convertName(paramName) + ")";
             }
@@ -249,7 +249,12 @@
 		@else{param.type.kind == CLASS_JSON_ARRAY}
 			@{convertName(param.name)} is not None and isinstance(@{convertName(param.name)}, (list, tuple))
 		@else{param.type.kind == CLASS_HANDLER}
-			@{convertName(param.name)} is not None and callable(@{convertName(param.name)})
+			@if{param.type.args[0].kind == CLASS_ASYNC_RESULT}
+				@comment{"Skip async handlers"}
+				True
+			@else{}
+				@{convertName(param.name)} is not None and callable(@{convertName(param.name)})
+			@end{}
 		@else{param.type.kind == CLASS_DATA_OBJECT}
 			True
 			@comment{"len(@{convertName(param.name)}) > 0"}
@@ -338,18 +343,12 @@
 	@end{}
 
 	@if{baseMethod != null && static == method.staticMethod}
-		@code{add_coro_decorator = false}
-		@foreach{param: method.params}
-			@if{param.type.kind == CLASS_HANDLER}
-					@if{param.type.args[0].kind == CLASS_ASYNC_RESULT}
-						@code{add_coro_decorator = true}
-					@end{}
-			@end{}
-		@end{}
+		@code{add_coro_decorator = (method.kind == METHOD_FUTURE)}
 		@if{method.cacheReturn}@{ind}@@util.cached\n@end{}
 		@if{static}@{ind}@@classmethod\n@end{}
-		@if{add_coro_decorator}@{ind}@@util.coroutine\n@end{}
+		@comment{"@if{add_coro_decorator}@{ind}@@util.coroutine\n@end{}"}
 		@{ind}def @{convertName(methodName)}(self
+		@if{add_coro_decorator}@code{requiredParams.remove(requiredParams.size() -1)}@end{}
 		@foreach{param : requiredParams}
 			@if{optionsParam == null || param != optionsParam.name}
 				, @{convertName(param)}
@@ -359,6 +358,9 @@
 			@if{optionsParam == null || param != optionsParam.name}
 				, @{convertName(param)}=None
 			@end{}
+		@end{}
+		@if{add_coro_decorator}
+			, loop=None
 		@end{}
 		@if{optionsParam != null}
 			, **@{convertName(optionsParam.name)}
@@ -383,12 +385,21 @@
 				@{ind}    from @{retType.moduleName}_python.@{refedPackage}.@{convertName(retType.simpleName)} import @{retType.simpleName}\n
 				@code{imported.add(retType.simpleName)}
 			@end{}
+			@if{add_coro_decorator}
+				@{ind}    if loop is None: loop = asyncio.get_event_loop()\n
+				@{ind}    fut = asyncio.Future(loop=loop)\n
+			@end{}
 			@if{requiresTypeCheck([baseMethod])}
 				@{ind}    if @includeNamed{'genCondition';method=baseMethod;}:\n
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{add_coro_decorator}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return fut\n
+					@else{}
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 				@{ind}    else:\n
 				@{ind}        raise TypeError("Invalid arguments for @{convertName(methodName)}")\n
@@ -396,7 +407,12 @@
 				@if{baseMethod.fluent}
 					@{ind}    @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}    return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{add_coro_decorator}
+						@{ind}    @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}    return fut\n
+					@else{}
+						@{ind}    return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 			@end{}
 		@else{}
@@ -406,7 +422,12 @@
 				@if{method.fluent}
 					@{ind}        @{genMethodCall(method)}\n
 				@else{}
-					@{ind}        return @{convReturn(method.returnType, genMethodCall(method), false)}\n
+					@if{add_coro_decorator}
+						@{ind}        @{convReturn(method.returnType, genMethodCall(method), false)}\n
+						@{ind}        return fut\n
+					@else{}
+						@{ind}        return @{convReturn(method.returnType, genMethodCall(method), false)}\n
+					@end{}
 				@end{}
 			@end{}
 			@if{requiresTypeCheck([baseMethod])}
@@ -414,7 +435,12 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{add_coro_decorator}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return fut\n
+					@else{}
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 				@{ind}    else:\n
 				@{ind}        raise TypeError("Invalid arguments for @{convertName(methodName)}")\n
@@ -423,7 +449,12 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{add_coro_decorator}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return fut\n
+					@else{}
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 			@end{}
 		@end{}
@@ -508,7 +539,7 @@
 
 from __future__ import unicode_literals, print_function, absolute_import\n
 from vertx_python import util\n
-from vertx_python.compat import long, basestring, iteritems\n
+from vertx_python.compat import long, basestring, iteritems, asyncio\n
 \n
 
 @comment{"Initalize the Vert.x client if necessary"}

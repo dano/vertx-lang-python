@@ -22,18 +22,23 @@ def coroutine(func):
     @wraps(func)
     def inner(*args, **kwargs):
         loop = kwargs.pop('loop', None)
-        if loop is None:
-            loop = asyncio.get_event_loop()
         fut = asyncio.Future(loop=loop)
-        def handler(result, exc=None):
-            if exc is not None:
-                loop.call_soon_threadsafe(fut.set_exception, exc)
-            else:
-                loop.call_soon_threadsafe(fut.set_result, result)
+        handler = build_coro_handler(loop, fut)
         args += (handler,)
         func(*args, **kwargs)
         return fut
     return inner
+
+def build_coro_handler(loop, fut):
+    if loop is None:
+        loop = asyncio.get_event_loop()
+    return partial(coro_handler, loop, fut)
+
+def coro_handler(loop, fut, result, exc):
+    if exc is not None:
+        loop.call_soon_threadsafe(fut.set_exception, exc)
+    else:
+        loop.call_soon_threadsafe(fut.set_result, result)
 
 
 class AdaptingMap(JavaMap):
