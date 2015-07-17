@@ -343,12 +343,12 @@
 	@end{}
 
 	@if{baseMethod != null && static == method.staticMethod}
-		@code{add_coro_decorator = (method.kind == METHOD_FUTURE)}
+		@code{returnsFuture = (method.kind == METHOD_FUTURE)}
 		@if{method.cacheReturn}@{ind}@@util.cached\n@end{}
 		@if{static}@{ind}@@classmethod\n@end{}
-		@comment{"@if{add_coro_decorator}@{ind}@@util.coroutine\n@end{}"}
+		@comment{"@if{returnsFuture}@{ind}@@util.coroutine\n@end{}"}
 		@{ind}def @{convertName(methodName)}(self
-		@if{add_coro_decorator}@code{requiredParams.remove(requiredParams.size() -1)}@end{}
+		@if{returnsFuture}@code{requiredParams.remove(requiredParams.size() -1)}@end{}
 		@foreach{param : requiredParams}
 			@if{optionsParam == null || param != optionsParam.name}
 				, @{convertName(param)}
@@ -359,7 +359,7 @@
 				, @{convertName(param)}=None
 			@end{}
 		@end{}
-		@if{add_coro_decorator}
+		@if{returnsFuture}
 			, loop=None
 		@end{}
 		@if{optionsParam != null}
@@ -385,7 +385,7 @@
 				@{ind}    from @{retType.moduleName}_python.@{refedPackage}.@{convertName(retType.simpleName)} import @{retType.simpleName}\n
 				@code{imported.add(retType.simpleName)}
 			@end{}
-			@if{add_coro_decorator}
+			@if{returnsFuture}
 				@{ind}    if loop is None: loop = asyncio.get_event_loop()\n
 				@{ind}    fut = asyncio.Future(loop=loop)\n
 			@end{}
@@ -394,7 +394,7 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@if{add_coro_decorator}
+					@if{returnsFuture}
 						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
 						@{ind}        return fut\n
 					@else{}
@@ -407,7 +407,7 @@
 				@if{baseMethod.fluent}
 					@{ind}    @{genMethodCall(baseMethod)}\n
 				@else{}
-					@if{add_coro_decorator}
+					@if{returnsFuture}
 						@{ind}    @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
 						@{ind}    return fut\n
 					@else{}
@@ -422,7 +422,7 @@
 				@if{method.fluent}
 					@{ind}        @{genMethodCall(method)}\n
 				@else{}
-					@if{add_coro_decorator}
+					@if{returnsFuture}
 						@{ind}        @{convReturn(method.returnType, genMethodCall(method), false)}\n
 						@{ind}        return fut\n
 					@else{}
@@ -435,7 +435,7 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@if{add_coro_decorator}
+					@if{returnsFuture}
 						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
 						@{ind}        return fut\n
 					@else{}
@@ -449,7 +449,7 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@if{add_coro_decorator}
+					@if{returnsFuture}
 						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
 						@{ind}        return fut\n
 					@else{}
