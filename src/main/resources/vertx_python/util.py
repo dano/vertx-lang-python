@@ -11,12 +11,39 @@ from py4j.java_collections import MapConverter, ListConverter, SetConverter, Jav
 
 from .compat import reduce, iteritems
 
+from asyncio import Task
+
 java_gateway = None
 jvm = None
 jvertx = None
 
 class VertxException(Exception):
     pass
+
+
+def wrap_handler(user_handler, fut):
+    def handler_wrapper(result, exc):
+        if user_handler is None:
+            if exc is not None:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(result)
+        else:
+            user_handler(result, exc)
+
+
+class VertxRunner(object):
+    def run(self, coro):
+        Task(coro, loop=self)
+
+    def call_later(self, delay, func, *args):
+        def do_it():
+            func(*args)
+        self.v.set_timer(delay, do_it)
+
+    def call_soon(self, func, *args):
+        self.call_later(1, func, *args)
+
 
 class AdaptingMap(JavaMap):
     def __init__(self, map, java_converter, python_converter):

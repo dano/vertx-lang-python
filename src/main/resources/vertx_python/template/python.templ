@@ -313,12 +313,18 @@
 	@code{methodList = methodsByName.get(methodName);  method = methodList.get(0);}
 
 
-	@code{requiredParams = []; optionalParams = []; optionsParam = null; paramNames = []; cnt = 0;}
+	@code{requiredParams = []; optionalParams = []; optionsParam = null; asyncResultParam = null; paramNames = []; cnt = 0; needsFuture = false;}
 	@foreach{method: methodList}
 		@if{cnt == 0}
 			@foreach{param: method.params}
+				@if{method.kind == METHOD_FUTURE}
+					@code{needsFuture = true}
+				@end{}
 				@if{param.type.kind == CLASS_DATA_OBJECT}
 					@code{optionsParam = param}
+				@else{param.type.kind == CLASS_HANDLER && 
+                      param.type.args[0].kind == CLASS_ASYNC_RESULT}
+					@code{asyncResultParam = param}
 				@end{}
 				@code{requiredParams.add(param.name);}
 			@end{}
@@ -326,9 +332,15 @@
 		@else{}
 			@code{newRequiredParams = []}
 			@foreach{param: method.params}
+				@if{method.kind == METHOD_FUTURE}
+					@code{needsFuture = true}
+				@end{}
 				@if{!paramNames.contains(param.name)}@code{paramNames.add(param.name)}@end{}
 				@if{param.type.kind == CLASS_DATA_OBJECT}
 					@code{optionsParam = param}
+				@else{param.type.kind == CLASS_HANDLER && 
+                      param.type.args[0].kind == CLASS_ASYNC_RESULT}
+					@code{asyncResultParam = param}
 				@end{}
 				@if{requiredParams.contains(param.name)}
 					@code{newRequiredParams.add(param.name)}
@@ -386,14 +398,19 @@
 		@if{static}@{ind}@@classmethod\n@end{}
 		@{ind}def @{convertName(methodName)}(self
 		@foreach{param : requiredParams}
-			@if{optionsParam == null || param != optionsParam.name}
+			@if{(optionsParam == null || param != optionsParam.name) &&
+                (asyncResultParam == null || param != asyncResultParam.name)}
 				, @{convertName(param)}
 			@end{}
 		@end{}
 		@foreach{param: optionalParams}
-			@if{optionsParam == null || param != optionsParam.name}
+			@if{optionsParam == null || param != optionsParam.name) &&
+                (asyncResultParam == null || param != asyncResultParam.name)}
 				, @{convertName(param)}=None
 			@end{}
+		@end{}
+		@if{asyncResultParam != null}
+			, @{convertName(asyncResultParam.name)}
 		@end{}
 		@if{optionsParam != null}
 			, **@{convertName(optionsParam.name)}
@@ -403,6 +420,11 @@
 			@{helper.indentString("\"\"\"\n" + helper.removeTags(method.comment) + "\"\"\"\n", ind + "    ")}
 		@else{}
 			@{ind}    """"""\n
+		@end{}
+
+		@if{needsFuture}
+			@{ind}    fut = util.Future()\n
+			@{ind}    _method = util.wrap_handler(@{convertName(asyncResultParam.name)}, fut)\n
 		@end{}
 
 		@if{childMethods.isEmpty()}
@@ -423,7 +445,12 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{needsFuture}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						return fut
+					@else{}	
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 				@{ind}    else:\n
 				@{ind}        raise TypeError("Invalid arguments for @{convertName(methodName)}")\n
@@ -431,7 +458,12 @@
 				@if{baseMethod.fluent}
 					@{ind}    @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}    return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{needsFuture}
+						@{ind}    @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						return fut
+					@else{}	
+						@{ind}    return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 			@end{}
 		@else{}
@@ -441,7 +473,12 @@
 				@if{method.fluent}
 					@{ind}        @{genMethodCall(method)}\n
 				@else{}
-					@{ind}        return @{convReturn(method.returnType, genMethodCall(method), false)}\n
+					@if{needsFuture}
+						@{ind}        @{convReturn(method.returnType, genMethodCall(method), false)}\n
+						return fut
+					@else{}	
+						@{ind}        return @{convReturn(method.returnType, genMethodCall(method), false)}\n
+					@end{}
 				@end{}
 			@end{}
 			@if{requiresTypeCheck([baseMethod])}
@@ -449,7 +486,12 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{needsFuture}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						return fut
+					@else{}	
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 				@{ind}    else:\n
 				@{ind}        raise TypeError("Invalid arguments for @{convertName(methodName)}")\n
@@ -458,7 +500,12 @@
 				@if{baseMethod.fluent}
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
-					@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@if{needsFuture}
+						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						return fut
+					@else{}	
+						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+					@end{}
 				@end{}
 			@end{}
 		@end{}
@@ -544,6 +591,7 @@
 from __future__ import unicode_literals, print_function, absolute_import\n
 from vertx_python import util\n
 from vertx_python.compat import long, basestring, iteritems\n
+from asyncio import Future
 \n
 
 @comment{"Initalize the Vert.x client if necessary"}
