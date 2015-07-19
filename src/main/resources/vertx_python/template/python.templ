@@ -631,7 +631,8 @@
 
 from __future__ import unicode_literals, print_function, absolute_import\n
 from vertx_python import util\n
-from vertx_python.compat import long, basestring, iteritems, Future as _Future\n
+from vertx_python.compat import long, basestring, iteritems\n
+from vertx_python.futures import Future as _Future\n
 \n
 
 @comment{"Initalize the Vert.x client if necessary"}

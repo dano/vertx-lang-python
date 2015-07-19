@@ -8,12 +8,8 @@ if sys.version_info[0] < 3:
     basestring = basestring
     unicode = unicode
     reduce = reduce
-    import trollius as asyncio
 else:
     long = int
     basestring = str
     unicode = str
     from functools import reduce
-    import asyncio
-Future = asyncio.Future
-Task = asyncio.Task
