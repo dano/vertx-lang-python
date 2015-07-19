@@ -11,8 +11,6 @@ from py4j.java_collections import MapConverter, ListConverter, SetConverter, Jav
 
 from .compat import reduce, iteritems
 
-from asyncio import Task
-
 java_gateway = None
 jvm = None
 jvertx = None
@@ -30,19 +28,7 @@ def wrap_handler(user_handler, fut):
                 fut.set_result(result)
         else:
             user_handler(result, exc)
-
-
-class VertxRunner(object):
-    def run(self, coro):
-        Task(coro, loop=self)
-
-    def call_later(self, delay, func, *args):
-        def do_it():
-            func(*args)
-        self.v.set_timer(delay, do_it)
-
-    def call_soon(self, func, *args):
-        self.call_later(1, func, *args)
+    return handler_wrapper
 
 
 class AdaptingMap(JavaMap):
@@ -68,6 +54,7 @@ class FrozenEncoder(json.JSONEncoder):
         if isinstance(obj, (set, frozenset)):
             return list(obj)
         return json.JSONEncoder(self, obj)
+
 
 def parse_array(old_parse_array, *args, **kwargs):
     values, end = old_parse_array(*args, **kwargs)
@@ -266,7 +253,6 @@ def java_to_python(obj, hashable=False):
             return obj
     except AttributeError:
         return obj
-
 
 def cached(func):
     ''' Decorator for methods that need to cache results. '''

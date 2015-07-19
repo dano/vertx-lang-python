@@ -50,11 +50,15 @@
 			if (param != method.params[0]) {
 				out += ", ";
 			}
-			argName = convertName(param.name);
+			if (needsFuture && (param.name == asyncResultParam.name)) {
+				argName = "_method";
+			} else {
+				argName = convertName(param.name);
+			}
 			out += convParam(argName, param.type);
 		}
 		out += ")";
-		return out;	
+		return out\n;	
 	}
 
 	def boolToStr(b) {
@@ -293,7 +297,11 @@
 		@else{param.type.kind == CLASS_JSON_ARRAY}
 			@{convertName(param.name)} is not None and isinstance(@{convertName(param.name)}, (list, tuple))
 		@else{param.type.kind == CLASS_HANDLER}
-			@{convertName(param.name)} is not None and callable(@{convertName(param.name)})
+			@if{param.type.args[0].kind == CLASS_ASYNC_RESULT}
+				True
+			@else{}
+				@{convertName(param.name)} is not None and callable(@{convertName(param.name)})
+			@end{}
 		@else{param.type.kind == CLASS_DATA_OBJECT}
 			True
 			@comment{"len(@{convertName(param.name)}) > 0"}
@@ -404,13 +412,14 @@
 			@end{}
 		@end{}
 		@foreach{param: optionalParams}
-			@if{optionsParam == null || param != optionsParam.name) &&
+			@if{(optionsParam == null || param != optionsParam.name) &&
                 (asyncResultParam == null || param != asyncResultParam.name)}
 				, @{convertName(param)}=None
 			@end{}
 		@end{}
 		@if{asyncResultParam != null}
-			, @{convertName(asyncResultParam.name)}
+			, @{convertName(asyncResultParam.name)}=None
+			, loop=None
 		@end{}
 		@if{optionsParam != null}
 			, **@{convertName(optionsParam.name)}
@@ -423,8 +432,11 @@
 		@end{}
 
 		@if{needsFuture}
-			@{ind}    fut = util.Future()\n
-			@{ind}    _method = util.wrap_handler(@{convertName(asyncResultParam.name)}, fut)\n
+			@{ind}    if @{convertName(asyncResultParam.name)} is None:\n
+			@{ind}        fut = _Future(loop=loop)\n
+			@{ind}        _method = util.wrap_handler(@{convertName(asyncResultParam.name)}, fut)\n
+			@{ind}    else:\n
+			@{ind}        _method = @{convertName(asyncResultParam.name)}\n
 		@end{}
 
 		@if{childMethods.isEmpty()}
@@ -446,10 +458,16 @@
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
 					@if{needsFuture}
-						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
-						return fut
+						@{ind}        out = @{convReturn(baseMethod.returnType, 
+													     genMethodCall(baseMethod), false)}\n
+						
+						@{ind}        if @{convertName(asyncResultParam.name)} is None:\n
+						@{ind}            return fut\n
+						@{ind}        else:\n
+						@{ind}            return out\n
 					@else{}	
-						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return @{convReturn(baseMethod.returnType, 
+                                                          genMethodCall(baseMethod), false)}\n
 					@end{}
 				@end{}
 				@{ind}    else:\n
@@ -459,10 +477,16 @@
 					@{ind}    @{genMethodCall(baseMethod)}\n
 				@else{}
 					@if{needsFuture}
-						@{ind}    @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
-						return fut
+						@{ind}    out = @{convReturn(baseMethod.returnType, 
+													     genMethodCall(baseMethod), false)}\n
+						
+						@{ind}    if @{convertName(asyncResultParam.name)} is None:\n
+						@{ind}        return fut\n
+						@{ind}    else:\n
+						@{ind}        return out\n
 					@else{}	
-						@{ind}    return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}    return @{convReturn(baseMethod.returnType, 
+													  genMethodCall(baseMethod), false)}\n
 					@end{}
 				@end{}
 			@end{}
@@ -474,10 +498,15 @@
 					@{ind}        @{genMethodCall(method)}\n
 				@else{}
 					@if{needsFuture}
-						@{ind}        @{convReturn(method.returnType, genMethodCall(method), false)}\n
-						return fut
+						@{ind}        out = @{convReturn(method.returnType, 
+													     genMethodCall(method), false)}\n
+						@{ind}        if @{convertName(asyncResultParam.name)} is None:\n
+						@{ind}            return fut\n
+						@{ind}        else:\n
+						@{ind}            return out\n
 					@else{}	
-						@{ind}        return @{convReturn(method.returnType, genMethodCall(method), false)}\n
+						@{ind}        return @{convReturn(method.returnType, 
+														  genMethodCall(method), false)}\n
 					@end{}
 				@end{}
 			@end{}
@@ -487,10 +516,16 @@
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
 					@if{needsFuture}
-						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
-						return fut
+						@{ind}        out = @{convReturn(baseMethod.returnType, 
+													     genMethodCall(baseMethod), false)}\n
+						
+						@{ind}        if @{convertName(asyncResultParam.name)} is None:\n
+						@{ind}            return fut\n
+						@{ind}        else:\n
+						@{ind}            return out\n
 					@else{}	
-						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return @{convReturn(baseMethod.returnType, 
+														  genMethodCall(baseMethod), false)}\n
 					@end{}
 				@end{}
 				@{ind}    else:\n
@@ -501,10 +536,16 @@
 					@{ind}        @{genMethodCall(baseMethod)}\n
 				@else{}
 					@if{needsFuture}
-						@{ind}        @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
-						return fut
+						@{ind}        out = @{convReturn(baseMethod.returnType, 
+													     genMethodCall(baseMethod), false)}\n
+						
+						@{ind}        if @{convertName(asyncResultParam.name)} is None:\n
+						@{ind}            return fut\n
+						@{ind}        else:\n
+						@{ind}            return out\n
 					@else{}	
-						@{ind}        return @{convReturn(baseMethod.returnType, genMethodCall(baseMethod), false)}\n
+						@{ind}        return @{convReturn(baseMethod.returnType, 
+													      genMethodCall(baseMethod), false)}\n
 					@end{}
 				@end{}
 			@end{}
@@ -590,8 +631,7 @@
 
 from __future__ import unicode_literals, print_function, absolute_import\n
 from vertx_python import util\n
-from vertx_python.compat import long, basestring, iteritems\n
-from asyncio import Future
+from vertx_python.compat import long, basestring, iteritems, Future as _Future\n
 \n
 
 @comment{"Initalize the Vert.x client if necessary"}
