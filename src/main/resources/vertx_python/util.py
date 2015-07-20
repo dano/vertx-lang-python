@@ -19,15 +19,12 @@ class VertxException(Exception):
     pass
 
 
-def wrap_handler(user_handler, fut):
+def make_handler(fut):
     def handler_wrapper(result, exc):
-        if user_handler is None:
-            if exc is not None:
-                fut.set_exception(exc)
-            else:
-                fut.set_result(result)
+        if exc is not None:
+            fut.set_exception(exc)
         else:
-            user_handler(result, exc)
+            fut.set_result(result)
     return handler_wrapper
 
 

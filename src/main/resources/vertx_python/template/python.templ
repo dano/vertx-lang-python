@@ -433,7 +433,7 @@
 		@if{needsFuture}
 			@{ind}    if @{convertName(asyncResultParam.name)} is None:\n
 			@{ind}        fut = _Future()\n
-			@{ind}        _method = util.wrap_handler(@{convertName(asyncResultParam.name)}, fut)\n
+			@{ind}        _method = util.make_handler(fut)\n
 			@{ind}    else:\n
 			@{ind}        _method = @{convertName(asyncResultParam.name)}\n
 		@end{}
