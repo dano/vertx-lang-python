@@ -9,7 +9,7 @@ import sys
 import types
 import textwrap
 import functools
-from concurrent.futures import Future
+from concurrent.futures import Future as _Future
 
 try:
     from collections.abc import Generator as GeneratorType  # py35+
@@ -36,6 +36,17 @@ class LeakedCallbackError(Exception):
 
 class BadYieldError(Exception):
     pass
+
+
+class Future(_Future):
+    """" Some enhancements to concurrent.futures.Future """
+    # Implement the Python 3.5 Awaitable protocol if possible
+    # (we can't use return and yield together until py33).
+    if sys.version_info >= (3, 3):
+        exec(textwrap.dedent("""
+        def __await__(self):
+            return (yield self)
+        """))
 
 
 class Return(Exception):
@@ -92,7 +103,8 @@ def coroutine(func):
 
 class VertxRunner():
     def run_until_complete(self, coro):
-        return coro.result()
+        fut = convert_yielded(coro) 
+        return fut.result()
 
 _null_future = Future()
 _null_future.set_result(None)

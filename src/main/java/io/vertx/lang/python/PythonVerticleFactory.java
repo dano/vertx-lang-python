@@ -43,6 +43,25 @@ public class PythonVerticleFactory implements VerticleFactory {
     return new PythonVerticle(verticleName);
   }
 
+  public class ProcessMonitor implements Runnable {
+    private Process proc;
+    private PythonVerticle vert;
+
+    public ProcessMonitor(Process p, PythonVerticle v) {
+      proc = p;
+      vert = v;
+    }
+
+    public void run() {
+      try {
+        proc.waitFor();
+        vert.stop();
+      }
+      catch (Exception ex) { System.out.println(ex);}
+    }
+
+  }
+
   public class PythonVerticle extends AbstractVerticle {
 
     private final String verticleName;
@@ -62,6 +81,7 @@ public class PythonVerticleFactory implements VerticleFactory {
       pb.redirectOutput(Redirect.INHERIT);
       pb.redirectError(Redirect.INHERIT);
       process = pb.start();
+      new Thread(new ProcessMonitor(process, this)).start();
       if (asyncStart) {
         this.startFuture = startFuture;
       } else {
@@ -71,7 +91,7 @@ public class PythonVerticleFactory implements VerticleFactory {
 
     @Override
     public void stop(Future<Void> stopFuture) throws Exception {
-      if (process != null) {
+      if (process != null && process.isAlive()) {
         process.destroy();
       }
       stopFuture.complete();

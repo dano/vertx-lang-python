@@ -419,7 +419,6 @@
 		@end{}
 		@if{asyncResultParam != null}
 			, @{convertName(asyncResultParam.name)}=None
-			, loop=None
 		@end{}
 		@if{optionsParam != null}
 			, **@{convertName(optionsParam.name)}
@@ -433,7 +432,7 @@
 
 		@if{needsFuture}
 			@{ind}    if @{convertName(asyncResultParam.name)} is None:\n
-			@{ind}        fut = _Future(loop=loop)\n
+			@{ind}        fut = _Future()\n
 			@{ind}        _method = util.wrap_handler(@{convertName(asyncResultParam.name)}, fut)\n
 			@{ind}    else:\n
 			@{ind}        _method = @{convertName(asyncResultParam.name)}\n
