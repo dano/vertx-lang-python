@@ -22,10 +22,6 @@ except ImportError:
     def isawaitable(x): return False
 
 
-class LeakedCallbackError(Exception):
-    pass
-
-
 class BadYieldError(Exception):
     pass
 
@@ -93,6 +89,7 @@ def coroutine(func):
         return future
     return wrapper
 
+
 class VertxRunner():
     def run_until_complete(self, coro):
         fut = convert_yielded(coro) 
@@ -100,6 +97,7 @@ class VertxRunner():
 
 _null_future = Future()
 _null_future.set_result(None)
+
 
 class Runner(object):
     """Engine used to drive a running coroutine.
@@ -114,7 +112,6 @@ class Runner(object):
         self.result_future = result_future
         self.future = _null_future
         self.yield_point = None
-        self.pending_callbacks = None
         self.results = None
         self.running = False
         self.finished = False
@@ -123,7 +120,7 @@ class Runner(object):
             self.run()
 
     def run(self, result=None):
-        """Starts or resumes the generator, running until it reaches a
+        """ Starts or resumes the generator, running until it reaches a
         yield point that is not ready.
         """
         if self.running or self.finished:
@@ -152,14 +149,6 @@ class Runner(object):
                 except (StopIteration, Return) as e:
                     self.finished = True
                     self.future = _null_future
-                    if self.pending_callbacks and not self.had_exception:
-                        # If we ran cleanly without waiting on all callbacks
-                        # raise an error (really more of a warning).  If we
-                        # had an exception then some callbacks may have been
-                        # orphaned, so skip the check in that case.
-                        raise LeakedCallbackError(
-                            "finished without waiting for callbacks %r" %
-                            self.pending_callbacks)
                     self.result_future.set_result(getattr(e, 'value', None))
                     self.result_future = None
                     return
