@@ -22,14 +22,6 @@ except ImportError:
     def isawaitable(x): return False
 
 
-class KeyReuseError(Exception):
-    pass
-
-
-class UnknownKeyError(Exception):
-    pass
-
-
 class LeakedCallbackError(Exception):
     pass
 
@@ -128,33 +120,6 @@ class Runner(object):
         self.finished = False
         self.had_exception = False
         if self.handle_yield(first_yielded):
-            self.run()
-
-    def register_callback(self, key):
-        """Adds ``key`` to the list of callbacks."""
-        if self.pending_callbacks is None:
-            # Lazily initialize the old-style YieldPoint data structures.
-            self.pending_callbacks = set()
-            self.results = {}
-        if key in self.pending_callbacks:
-            raise KeyReuseError("key %r is already pending" % (key,))
-        self.pending_callbacks.add(key)
-
-    def is_ready(self, key):
-        """Returns true if a result is available for ``key``."""
-        if self.pending_callbacks is None or key not in self.pending_callbacks:
-            raise UnknownKeyError("key %r is not pending" % (key,))
-        return key in self.results
-
-    def set_result(self, key, result):
-        """Sets the result for ``key`` and attempts to resume the generator."""
-        self.results[key] = result
-        if self.yield_point is not None and self.yield_point.is_ready():
-            try:
-                self.future.set_result(self.yield_point.get_result())
-            except Exception as e:
-                self.future.set_exception(e)
-            self.yield_point = None
             self.run()
 
     def run(self, result=None):
